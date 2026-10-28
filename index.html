@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homicide fell most where it had risen most</title>
+<link rel="stylesheet" href="https://use.typekit.net/nlh6iak.css">
+<link rel="stylesheet" href="https://vital-city-nyc.github.io/vital-city-design-system/charts/chart-theme.css">
+<style>
+:root{--vc-black:#050507;--vc-cloud:#dddddd;--vc-paper:#f7f7f4;--vc-charcoal:#707175;--vc-orange:#ff7c53;--vc-cerulean:#217ebe;--vc-chartreuse:#dde44c;--sans:"halyard-text",Inter,"Helvetica Neue",Arial,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);font-weight:400;font-size:1.0625rem;line-height:1.5;color:#262626;background:#fff}
+a{color:#262626;text-decoration:underline;text-decoration-color:var(--vc-cerulean);text-underline-offset:2px}
+a:hover{color:var(--vc-cerulean)}
+main{max-width:56rem;margin:0 auto;padding:2rem 1rem 3rem}
+figure.chart{margin:0;border:1px solid var(--vc-black);background:#fff;padding:1.4rem 1.4rem 1.1rem;position:relative}
+.find{display:flex;align-items:center;gap:.5rem;margin:0 0 1rem;font-size:.8rem;color:var(--vc-charcoal)}
+.find label{white-space:nowrap}
+.find input{font:inherit;font-size:.85rem;color:var(--vc-black);border:1px solid var(--vc-cloud);border-radius:0;padding:.3rem .5rem;width:15rem;max-width:100%}
+.find input:focus{outline:2px solid var(--vc-cerulean);outline-offset:-1px;border-color:var(--vc-cerulean)}
+.find button{font:inherit;font-size:.8rem;background:none;border:0;padding:0;color:var(--vc-charcoal);text-decoration:underline;cursor:pointer}
+.find button[hidden]{display:none}
+.panels{display:grid;grid-template-columns:1fr 1fr;column-gap:1.75rem}
+/* Subgrid keeps the two plots level when one panel's subtitle wraps longer. */
+.panel{display:grid;grid-template-rows:subgrid;grid-row:span 4;align-content:start}
+.panel h4{font-family:var(--sans);font-weight:700;font-size:1rem;line-height:1.25;color:var(--vc-black);margin:0 0 .15rem}
+.panel .pdek{font-weight:300;font-size:.82rem;line-height:1.35;color:var(--vc-charcoal);margin:0 0 .5rem}
+.plot{position:relative;touch-action:pan-y}
+.plot svg{display:block;width:100%;overflow:visible}
+.panel .fit{font-weight:300;font-size:.78rem;line-height:1.4;color:#262626;margin:.35rem 0 0}
+.tip{position:absolute;z-index:5;pointer-events:none;background:#fff;border:1px solid var(--vc-black);padding:.45rem .6rem;font-size:.76rem;line-height:1.4;max-width:15rem;color:#262626}
+.tip b{display:block;font-weight:700;color:var(--vc-black);margin-bottom:.15rem}
+.tip[hidden]{display:none}
+body.embed main{max-width:none;padding:0}
+body.embed figure.chart{border:none;margin:0}
+@media(max-width:600px){
+  figure.chart{padding:1.1rem 1rem .9rem}
+  .panels{grid-template-columns:1fr}
+  .panel{display:block}
+  .panel+.panel{margin-top:1.5rem}
+  .find input{width:100%}
+}
+</style>
+</head>
+<body>
+<main>
+<figure class="chart vc-chart">
+  <h3 class="vc-chart__title">Homicide fell most where it had risen most, not where federal recovery funding was highest</h3>
+  <p class="vc-chart__subtitle">Change in homicide rate per 100,000 residents from 2021 to 2024 in 453 cities in 39 states. Each dot is one city.</p>
+  <div class="find">
+    <label for="city">Find a city</label>
+    <input id="city" list="cities" placeholder="Type a city name" autocomplete="off">
+    <datalist id="cities"></datalist>
+    <button type="button" id="clear" hidden>Clear</button>
+  </div>
+  <div class="panels">
+    <div class="panel">
+      <h4>More money, no bigger decline</h4>
+      <p class="pdek">Federal recovery funding compared with demographically similar cities in the same state</p>
+      <div class="plot" id="plot-fund"></div>
+      <p class="fit" id="fit-fund"></p>
+    </div>
+    <div class="panel">
+      <h4>Bigger surge, bigger decline</h4>
+      <p class="pdek">The 2019-2021 rise in homicide predicts the fall that followed</p>
+      <div class="plot" id="plot-surge"></div>
+      <p class="fit" id="fit-surge"></p>
+    </div>
+  </div>
+  <div class="tip" id="tip" hidden></div>
+  <p class="vc-chart__source">Source: Analysis by Ethan Doshi (<a href="https://www.crimrxiv.com/pub/bmqcnp64/release/5">working paper</a>) of <a href="https://home.treasury.gov/policy-issues/coronavirus/assistance-for-state-local-and-tribal-governments/state-and-local-fiscal-recovery-funds/public-data">U.S. Treasury State and Local Fiscal Recovery Funds reports</a> and <a href="https://www.openicpsr.org/openicpsr/project/100707">FBI Uniform Crime Reporting data compiled by Jacob Kaplan</a>. Covers the 453 cities with complete homicide reporting in 2019, 2021 and 2024. Funding is each city’s American Rescue Plan recovery award compared with what demographically similar cities in the same state received; 0% means it matched its peers. Lines are least-squares fits; shaded bands are 95% confidence intervals. <a href="data.csv" download>Download the data</a>.</p>
+</figure>
+</main>
+<script>
+const C={ink:"#050507",body:"#262626",cloud:"#dddddd",charcoal:"#707175",orange:"#ff7c53"};
+const F="halyard-text,Inter,'Helvetica Neue',Arial,sans-serif";
+const NS="http://www.w3.org/2000/svg";
+const $=s=>document.querySelector(s);
+function add(p,tag,attrs,text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;p.appendChild(e);return e}
+function parseCSV(t){const [h,...rows]=t.trim().split(/\r?\n/);const keys=h.split(",");return rows.map(r=>{const v=r.split(",");return Object.fromEntries(keys.map((k,i)=>[k,i<2?v[i]:Number(v[i])]))})}
+
+// Shared y-axis: change in homicide rate, 2021-2024. Same scale in both panels.
+const Y={key:"homicide_rate_change_2021_2024",min:-27,max:11,ticks:[-20,-10,0,10]};
+const PANELS=[
+  {id:"fund",key:"funding_vs_similar_pct",min:-55,max:175,ticks:[-50,0,50,100,150],
+   tick:v=>v===0?"0%":(v>0?"+":"−")+Math.abs(v)+"%",
+   xTitle:"Funding above or below what similar cities received",
+   labels:["Broomfield, Colorado","Trenton, New Jersey"]},
+  {id:"surge",key:"homicide_rate_change_2019_2021",min:-15,max:33,ticks:[-10,0,10,20,30],
+   tick:v=>v===0?"0":(v>0?"+":"−")+Math.abs(v),
+   xTitle:"Change in homicide rate, 2019-2021",
+   labels:["Trenton, New Jersey","Rochester, New York"]}
+];
+
+let DATA=[],pinned=null,hover=null;
+const name=d=>`${d.city}, ${d.state}`;
+
+// Ordinary least squares with a 95% confidence band for the fitted mean.
+function fit(xs,ys){
+  const n=xs.length,mx=xs.reduce((a,b)=>a+b)/n,my=ys.reduce((a,b)=>a+b)/n;
+  let sxx=0,sxy=0,syy=0;xs.forEach((x,i)=>{sxx+=(x-mx)**2;sxy+=(x-mx)*(ys[i]-my);syy+=(ys[i]-my)**2});
+  const b=sxy/sxx,a=my-b*mx;let rss=0;xs.forEach((x,i)=>rss+=(ys[i]-a-b*x)**2);
+  const se=Math.sqrt(rss/(n-2)),t=1.9652; // t critical value, 451 degrees of freedom
+  return {a,b,r2:1-rss/syy,band:x=>t*se*Math.sqrt(1/n+(x-mx)**2/sxx)};
+}
+
+function fmtX(p,v){
+  if(p.id==="fund")return v===0?"Same as similar cities":`${Math.abs(v).toFixed(1)}% ${v>0?"above":"below"} similar cities`;
+  return chg(v);
+}
+function chg(v){return v===0?"No change":`${v>0?"Rose":"Fell"} ${Math.abs(v).toFixed(1)} per 100,000`}
+
+function render(){
+  PANELS.forEach(p=>{
+    const box=$("#plot-"+p.id);box.innerHTML="";
+    const W=Math.max(260,box.clientWidth),H=Math.round(Math.min(380,Math.max(280,W*0.92)));
+    const m={l:34,r:8,t:24,b:44},iw=W-m.l-m.r,ih=H-m.t-m.b;
+    const sx=v=>m.l+iw*(v-p.min)/(p.max-p.min),sy=v=>m.t+ih*(Y.max-v)/(Y.max-Y.min);
+    const s=add(box,"svg",{viewBox:`0 0 ${W} ${H}`,width:W,height:H,role:"img","aria-label":p.xTitle+" against change in homicide rate, 2021-2024"});
+    p.sx=sx;p.sy=sy;p.svg=s;
+
+    // Y-axis title sits above the plot, horizontal, so it fits narrow panels.
+    const yt=add(s,"text",{x:0,y:11,"font-family":F,"font-size":11.5,"font-weight":700,fill:C.body},"Change in homicide rate, 2021-2024 ");
+    add(yt,"tspan",{"font-weight":300,fill:C.charcoal},"(below zero = fell)");
+    Y.ticks.forEach(t=>{
+      add(s,"line",{x1:m.l,x2:W-m.r,y1:sy(t),y2:sy(t),stroke:t===0?C.charcoal:C.cloud,"stroke-width":1});
+      add(s,"text",{x:m.l-6,y:sy(t)+4,"text-anchor":"end","font-family":F,"font-size":11,fill:C.charcoal},t===0?"0":(t>0?"+":"−")+Math.abs(t));
+    });
+    // Vertical zero reference only; no vertical gridlines.
+    add(s,"line",{x1:sx(0),x2:sx(0),y1:m.t,y2:m.t+ih,stroke:C.charcoal,"stroke-width":1});
+    add(s,"line",{x1:m.l,x2:W-m.r,y1:m.t+ih,y2:m.t+ih,stroke:C.charcoal,"stroke-width":1});
+    p.ticks.forEach(t=>add(s,"text",{x:sx(t),y:m.t+ih+16,"text-anchor":"middle","font-family":F,"font-size":11,fill:C.charcoal},p.tick(t)));
+    add(s,"text",{x:m.l+iw/2,y:H-6,"text-anchor":"middle","font-family":F,"font-size":11.5,"font-weight":700,fill:C.body},p.xTitle);
+
+    // Fit line and confidence band
+    const f=p.fit,xs=[];for(let i=0;i<=60;i++)xs.push(p.dmin+(p.dmax-p.dmin)*i/60);
+    const up=xs.map(x=>`${sx(x)},${sy(f.a+f.b*x+f.band(x))}`),lo=xs.slice().reverse().map(x=>`${sx(x)},${sy(f.a+f.b*x-f.band(x))}`);
+    add(s,"polygon",{points:up.concat(lo).join(" "),fill:C.cloud,"fill-opacity":.75});
+
+    const r=W<340?3.1:3.5;
+    const g=add(s,"g",{});
+    DATA.forEach(d=>add(g,"circle",{cx:sx(d[p.key]),cy:sy(d[Y.key]),r,fill:C.orange,"fill-opacity":.5,stroke:C.ink,"stroke-width":.5,"stroke-opacity":.7}));
+    add(s,"line",{x1:sx(p.dmin),y1:sy(f.a+f.b*p.dmin),x2:sx(p.dmax),y2:sy(f.a+f.b*p.dmax),stroke:C.ink,"stroke-width":2});
+
+    p.hl=add(s,"g",{});
+    p.W=W;p.m=m;
+  });
+  drawHighlights();
+}
+
+function label(p,d,strong){
+  const x=p.sx(d[p.key]),y=p.sy(d[Y.key]),right=x<p.W*0.62;
+  if(strong)add(p.hl,"circle",{cx:x,cy:y,r:6,fill:C.ink,stroke:"#fff","stroke-width":2});
+  else add(p.hl,"circle",{cx:x,cy:y,r:4,fill:"none",stroke:C.ink,"stroke-width":1.25});
+  const t=add(p.hl,"text",{x:x+(right?9:-9),y:y+4,"text-anchor":right?"start":"end","font-family":F,"font-size":strong?12:11,"font-weight":strong?700:400,fill:strong?C.ink:C.body,stroke:"#fff","stroke-width":3,"paint-order":"stroke","stroke-linejoin":"round"},d.city);
+  return t;
+}
+
+function drawHighlights(){
+  const active=hover||pinned;
+  PANELS.forEach(p=>{
+    if(!p.hl)return;p.hl.innerHTML="";
+    if(!active)p.labels.forEach(n=>{const d=DATA.find(r=>name(r)===n);if(d)label(p,d,false)});
+    else label(p,active,true);
+  });
+}
+
+function showTip(d,p,evtBox){
+  const tip=$("#tip"),fig=$("figure.chart").getBoundingClientRect();
+  tip.innerHTML=`<b>${name(d)}</b>Funding: ${fmtX(PANELS[0],d[PANELS[0].key])}<br>2019-2021: ${chg(d[PANELS[1].key])}<br>2021-2024: ${chg(d[Y.key])}`;
+  tip.hidden=false;
+  const px=evtBox.left-fig.left+p.sx(d[p.key])*(evtBox.width/p.W),py=evtBox.top-fig.top+p.sy(d[Y.key])*(evtBox.width/p.W);
+  const tw=tip.offsetWidth,th=tip.offsetHeight;
+  let left=px+14;if(left+tw>fig.width-6)left=px-14-tw;if(left<6)left=6;
+  let top=py-th-12;if(top<6)top=py+14;
+  tip.style.left=left+"px";tip.style.top=top+"px";
+}
+function hideTip(){$("#tip").hidden=true}
+
+function bindHover(p){
+  const box=$("#plot-"+p.id);
+  const pick=e=>{
+    const rect=p.svg.getBoundingClientRect(),k=p.W/rect.width,mx=(e.clientX-rect.left)*k,my=(e.clientY-rect.top)*k;
+    let best=null,bd=14*14;
+    DATA.forEach(d=>{const dx=p.sx(d[p.key])-mx,dy=p.sy(d[Y.key])-my,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=d}});
+    return {best,rect};
+  };
+  const onMove=e=>{
+    const {best,rect}=pick(e);
+    if(best!==hover){hover=best;drawHighlights()}
+    if(best)showTip(best,p,rect);else if(pinned)showTip(pinned,p,rect);else hideTip();
+  };
+  // Mouse hovers; a tap on a phone fires pointerdown, so both reveal the dot.
+  box.addEventListener("pointermove",onMove);
+  box.addEventListener("pointerdown",onMove);
+  box.addEventListener("pointerleave",e=>{if(e.pointerType==="touch")return;hover=null;drawHighlights();if(!pinned)hideTip()});
+}
+
+function setPinned(d){
+  pinned=d;$("#clear").hidden=!d;hover=null;drawHighlights();
+  if(d){const p=PANELS[1];showTip(d,p,p.svg.getBoundingClientRect())}else hideTip();
+}
+
+fetch("data.csv").then(r=>r.text()).then(t=>{
+  DATA=parseCSV(t);
+  PANELS.forEach(p=>{
+    const xs=DATA.map(d=>d[p.key]);p.dmin=Math.min(...xs);p.dmax=Math.max(...xs);
+    p.fit=fit(xs,DATA.map(d=>d[Y.key]));
+  });
+  const fu=PANELS[0].fit,su=PANELS[1].fit;
+  $("#fit-fund").textContent=`The trend line is flat: funding accounts for ${fu.r2<0.01?"less than 1%":Math.round(fu.r2*100)+"%"} of the variation in the 2021-2024 change.`;
+  $("#fit-surge").textContent=`For each additional homicide per 100,000 residents in the 2019-2021 rise, the 2021-2024 change was ${Math.abs(su.b).toFixed(2)} lower on average. The earlier rise accounts for ${Math.round(su.r2*100)}% of the variation.`;
+  $("#cities").innerHTML=DATA.map(name).sort().map(n=>`<option value="${n}">`).join("");
+  render();PANELS.forEach(bindHover);
+  let pw=$(".panels").clientWidth;new ResizeObserver(()=>{const w=$(".panels").clientWidth;if(w!==pw){pw=w;render()}}).observe($(".panels"));
+});
+
+$("#city").addEventListener("input",e=>{
+  const v=e.target.value.trim().toLowerCase();
+  if(!v){setPinned(null);return}
+  const d=DATA.find(r=>name(r).toLowerCase()===v)||(DATA.filter(r=>r.city.toLowerCase()===v).length===1?DATA.find(r=>r.city.toLowerCase()===v):null);
+  if(d)setPinned(d);
+});
+$("#clear").addEventListener("click",()=>{$("#city").value="";setPinned(null)});
+
+// Embed mode: ?embed=1 strips the card border and page padding so the chart
+// can sit inside a Ghost HTML card, and posts the content height up.
+if(new URLSearchParams(location.search).get("embed")==="1"){
+  document.body.classList.add("embed");
+  const postHeight=()=>{const el=document.querySelector("figure.chart");if(!el||innerWidth<50)return;const h=Math.ceil(el.getBoundingClientRect().height);if(h>0)parent.postMessage({type:"vc-embed-height",id:"homicide-funding-scatter",height:h},"*")};
+  window.addEventListener("load",postHeight);
+  window.addEventListener("resize",postHeight);
+  let en=0;const et=setInterval(()=>{postHeight();if(++en>20)clearInterval(et)},300);
+}
+</script>
+</body>
+</html>
